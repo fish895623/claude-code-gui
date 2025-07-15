@@ -142,6 +142,9 @@ class ApplicationSettings:
     default_system_prompt: Optional[str] = None
     default_tools: List[str] = field(default_factory=list)
     default_rules: Optional[str] = None  # Default XML rules for new sessions
+    default_permission_mode: str = "acceptEdits"  # acceptEdits, bypassPermissions
+    enable_plan_mode: bool = False  # Whether to use plan mode by default
+    enable_dangerous_skip: bool = False  # Whether to enable dangerous skip mode
 
     # History settings
     history_retention_days: int = 30
@@ -166,6 +169,9 @@ class ApplicationSettings:
             "default_system_prompt": self.default_system_prompt,
             "default_tools": self.default_tools,
             "default_rules": self.default_rules,
+            "default_permission_mode": self.default_permission_mode,
+            "enable_plan_mode": self.enable_plan_mode,
+            "enable_dangerous_skip": self.enable_dangerous_skip,
             "history_retention_days": self.history_retention_days,
             "export_formats": self.export_formats,
         }
@@ -191,6 +197,9 @@ class ApplicationSettings:
         settings.default_system_prompt = data.get("default_system_prompt")
         settings.default_tools = data.get("default_tools", [])
         settings.default_rules = data.get("default_rules")
+        settings.default_permission_mode = data.get("default_permission_mode", "acceptEdits")
+        settings.enable_plan_mode = data.get("enable_plan_mode", False)
+        settings.enable_dangerous_skip = data.get("enable_dangerous_skip", False)
         settings.history_retention_days = data.get("history_retention_days", 30)
         settings.export_formats = data.get(
             "export_formats", ["json", "markdown", "html"]
