@@ -18,6 +18,9 @@ from claude_code_sdk import (
     ToolUseBlock,
     ToolResultBlock,
 )
+from typing import Literal
+
+PermissionMode = Literal["default", "acceptEdits", "bypassPermissions"]
 
 
 @dataclass
@@ -28,7 +31,7 @@ class QueryConfig:
     max_turns: Optional[int] = None
     allowed_tools: List[str] = field(default_factory=list)
     disallowed_tools: List[str] = field(default_factory=list)
-    permission_mode: Optional[str] = None
+    permission_mode: Optional[PermissionMode] = None
     cwd: Optional[Path] = None
     model: Optional[str] = None
 
@@ -93,7 +96,7 @@ class ClaudeCodeSDKWrapper:
                         {
                             "type": "tool_result",
                             "tool_use_id": block.tool_use_id,
-                            "output": block.output,
+                            "output": getattr(block, "output", ""),
                             "is_error": block.is_error,
                         }
                     )
