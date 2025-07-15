@@ -259,3 +259,95 @@ class SessionMetadata:
             total_tokens=session.total_tokens,
             total_cost=session.total_cost,
         )
+
+
+@dataclass
+class TaskTemplate:
+    """Represents a reusable task template."""
+
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    name: str = "New Task"
+    description: str = ""
+    prompt_template: str = ""
+    working_directory: Optional[str] = None
+    permission_mode: str = "acceptEdits"
+    system_prompt: Optional[str] = None
+    custom_rules: Optional[str] = None
+    is_builtin: bool = False
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert template to dictionary."""
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "prompt_template": self.prompt_template,
+            "working_directory": self.working_directory,
+            "permission_mode": self.permission_mode,
+            "system_prompt": self.system_prompt,
+            "custom_rules": self.custom_rules,
+            "is_builtin": self.is_builtin,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "TaskTemplate":
+        """Create template from dictionary."""
+        return cls(
+            id=data.get("id", str(uuid.uuid4())),
+            name=data.get("name", "New Task"),
+            description=data.get("description", ""),
+            prompt_template=data.get("prompt_template", ""),
+            working_directory=data.get("working_directory"),
+            permission_mode=data.get("permission_mode", "acceptEdits"),
+            system_prompt=data.get("system_prompt"),
+            custom_rules=data.get("custom_rules"),
+            is_builtin=data.get("is_builtin", False),
+        )
+
+
+@dataclass
+class Task:
+    """Represents a specific task to be executed."""
+
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    title: str = "New Task"
+    prompt: str = ""
+    working_directory: Optional[str] = None
+    permission_mode: str = "acceptEdits"
+    system_prompt: Optional[str] = None
+    custom_rules: Optional[str] = None
+    template_id: Optional[str] = None  # Reference to template used
+    created_at: datetime = field(default_factory=datetime.now)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert task to dictionary."""
+        return {
+            "id": self.id,
+            "title": self.title,
+            "prompt": self.prompt,
+            "working_directory": self.working_directory,
+            "permission_mode": self.permission_mode,
+            "system_prompt": self.system_prompt,
+            "custom_rules": self.custom_rules,
+            "template_id": self.template_id,
+            "created_at": self.created_at.isoformat(),
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "Task":
+        """Create task from dictionary."""
+        return cls(
+            id=data.get("id", str(uuid.uuid4())),
+            title=data.get("title", "New Task"),
+            prompt=data.get("prompt", ""),
+            working_directory=data.get("working_directory"),
+            permission_mode=data.get("permission_mode", "acceptEdits"),
+            system_prompt=data.get("system_prompt"),
+            custom_rules=data.get("custom_rules"),
+            template_id=data.get("template_id"),
+            created_at=(
+                datetime.fromisoformat(data["created_at"])
+                if "created_at" in data
+                else datetime.now()
+            ),
+        )

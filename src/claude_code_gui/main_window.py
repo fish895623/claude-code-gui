@@ -27,6 +27,7 @@ from PyQt6.QtWidgets import (
     QToolBar,
     QRadioButton,
     QButtonGroup,
+    QComboBox,
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtGui import (
@@ -41,8 +42,9 @@ from PyQt6.QtGui import (
 from .sdk_integration import ClaudeCodeSDKWrapper, QueryConfig
 from .workers import ClaudeQueryWorker, ClaudeQueryThread
 from .session_manager import SessionManager
-from .models import MessageRole, ConversationSession
+from .models import MessageRole, ConversationSession, Task
 from .rules_editor import RulesEditorDialog
+from .task_dialog import TaskCreationDialog
 
 
 class MessageDisplay(QTextEdit):
@@ -402,6 +404,33 @@ class ClaudeCodeMainWindow(QMainWindow):
 
         # Update mode display
         self.update_mode_display()
+
+        mode_toolbar.addSeparator()
+
+        # Boomerang button
+        self.boomerang_button = QPushButton("🪃 New Task")
+        self.boomerang_button.setToolTip("Create a new task (Ctrl+B)")
+        self.boomerang_button.clicked.connect(self.create_new_task)
+        self.boomerang_button.setStyleSheet(
+            "QPushButton { font-weight: bold; background-color: #4CAF50; color: white; padding: 5px 10px; }"
+        )
+        mode_toolbar.addWidget(self.boomerang_button)
+
+        mode_toolbar.addSeparator()
+
+        # Session switcher
+        mode_toolbar.addWidget(QLabel(" Session: "))
+        self.session_combo = QComboBox()
+        self.session_combo.setMinimumWidth(200)
+        self.session_combo.currentTextChanged.connect(self.on_session_switched)
+        mode_toolbar.addWidget(self.session_combo)
+
+        # Quick new session button
+        self.quick_new_button = QPushButton("➕")
+        self.quick_new_button.setToolTip("Quick new session (Ctrl+Shift+N)")
+        self.quick_new_button.clicked.connect(self.quick_new_session)
+        self.quick_new_button.setMaximumWidth(30)
+        mode_toolbar.addWidget(self.quick_new_button)
 
     def send_query(self):
         """Send a query to Claude Code."""
@@ -813,6 +842,9 @@ class ClaudeCodeMainWindow(QMainWindow):
             self.rules_label.setText("Rules: None")
             self.rules_label.setStyleSheet("")
 
+        # Update session combo
+        self.update_session_combo()
+
     def edit_rules(self):
         """Edit custom rules for the current session."""
         if not self.session_manager.current_session:
@@ -914,6 +946,12 @@ class ClaudeCodeMainWindow(QMainWindow):
         next_action.triggered.connect(self.next_mode)
         self.addAction(next_action)
 
+        # Boomerang shortcut (Ctrl+B)
+        boomerang_action = QAction(self)
+        boomerang_action.setShortcut("Ctrl+B")
+        boomerang_action.triggered.connect(self.create_new_task)
+        self.addAction(boomerang_action)
+
     def update_mode_display(self):
         """Update the mode display in the session info."""
         checked_button = self.mode_group.checkedButton()
@@ -934,6 +972,134 @@ class ClaudeCodeMainWindow(QMainWindow):
                 self.mode_label.setStyleSheet("QLabel { color: green; }")
             else:
                 self.mode_label.setStyleSheet("")
+
+    def create_new_task(self):
+        """Open task creation dialog and create a new task-based session."""
+        dialog = TaskCreationDialog(self)
+        dialog.task_created.connect(self.execute_task)
+
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            # Task will be executed via the signal
+            pass
+
+    def execute_task(self, task: Task):
+        """Execute a task by creating a new session and sending the prompt."""
+        # Save current session if needed
+        if (
+            self.session_manager.current_session
+            and self.session_manager.current_session.messages
+        ):
+            if self.session_manager.app_settings.auto_save_enabled:
+                self.session_manager.save_session()
+
+        # Create new session for the task
+        session = self.session_manager.create_new_session(title=task.title)
+
+        # Apply task settings to session
+        if task.system_prompt:
+            session.system_prompt = task.system_prompt
+        if task.custom_rules:
+            session.custom_rules = task.custom_rules
+
+        # Clear the display for new session
+        self.message_display.clear()
+        self.tools_display.clear()
+        self.update_session_info()
+
+        # Set working directory if specified
+        original_cwd = None
+        if task.working_directory:
+            try:
+                original_cwd = Path.cwd()
+                Path(task.working_directory).mkdir(parents=True, exist_ok=True)
+                import os
+
+                os.chdir(task.working_directory)
+            except Exception as e:
+                QMessageBox.warning(
+                    self,
+                    "Working Directory Error",
+                    f"Could not change to directory: {e}",
+                )
+
+        # Set permission mode based on task
+        if task.permission_mode == "bypassPermissions":
+            self.auto_accept_radio.setChecked(True)
+        elif task.permission_mode == "plan":
+            self.plan_mode_radio.setChecked(True)
+        else:
+            self.accept_edits_radio.setChecked(True)
+
+        # Execute the task prompt
+        self.input_field.setText(task.prompt)
+        self.send_query()
+
+        # Restore original working directory if changed
+        if original_cwd:
+            try:
+                import os
+
+                os.chdir(original_cwd)
+            except:
+                pass
+
+        self.status_bar.showMessage(f"Task '{task.title}' started")
+
+    def quick_new_session(self):
+        """Quickly create a new session without dialog."""
+        # Save current session if needed
+        if (
+            self.session_manager.current_session
+            and self.session_manager.current_session.messages
+        ):
+            if self.session_manager.app_settings.auto_save_enabled:
+                self.session_manager.save_session()
+
+        # Create new session
+        self.session_manager.create_new_session()
+        self.message_display.clear()
+        self.tools_display.clear()
+        self.update_session_info()
+        self.update_session_combo()
+        self.status_bar.showMessage("New session created")
+
+    def on_session_switched(self, text: str):
+        """Handle session switching from combo box."""
+        if not text or self.session_combo.currentData() is None:
+            return
+
+        session_id = self.session_combo.currentData()
+        if session_id and session_id != getattr(
+            self.session_manager.current_session, "id", None
+        ):
+            self.load_session(session_id)
+
+    def update_session_combo(self):
+        """Update the session combo box with recent sessions."""
+        # Block signals to prevent triggering session switch
+        self.session_combo.blockSignals(True)
+
+        self.session_combo.clear()
+
+        # Add current session
+        if self.session_manager.current_session:
+            self.session_combo.addItem(
+                self.session_manager.current_session.title,
+                self.session_manager.current_session.id,
+            )
+
+        # Add recent sessions
+        recent_sessions = self.session_manager.get_recent_sessions()[:5]
+        for session_meta in recent_sessions:
+            if (
+                self.session_manager.current_session
+                and session_meta.id == self.session_manager.current_session.id
+            ):
+                continue  # Skip current session, already added
+            self.session_combo.addItem(session_meta.title, session_meta.id)
+
+        # Re-enable signals
+        self.session_combo.blockSignals(False)
 
 
 class SessionSelectionDialog(QDialog):
