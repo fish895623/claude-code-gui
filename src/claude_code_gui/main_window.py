@@ -465,6 +465,9 @@ class ClaudeCodeMainWindow(QMainWindow):
         if checked_id >= 0 and checked_id < len(self.modes):
             mode_key = self.modes[checked_id][0]
 
+            # Allow all tools for all modes
+            query_config.disallowed_tools = []  # Allow all tools
+
             if mode_key == "acceptEdits":
                 query_config.permission_mode = "acceptEdits"
             elif mode_key == "bypassPermissions" or mode_key == "dangerous":
@@ -477,9 +480,8 @@ class ClaudeCodeMainWindow(QMainWindow):
                 plan_instruction = "\n\nIMPORTANT: Before executing any tasks, first create and present a detailed plan of what you will do. Only proceed with implementation after the user approves the plan."
                 query_config.system_prompt = plan_instruction
 
-            # For dangerous mode, disable all safety tools
+            # For dangerous mode, add warning to system prompt
             if mode_key == "dangerous":
-                query_config.disallowed_tools = []  # Allow all tools
                 # Add warning to system prompt
                 danger_warning = "\n\nWARNING: Dangerous-Skip mode is active. All safety checks are bypassed."
                 if query_config.system_prompt:
