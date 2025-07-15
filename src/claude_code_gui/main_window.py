@@ -28,6 +28,7 @@ from PyQt6.QtWidgets import (
     QRadioButton,
     QButtonGroup,
     QComboBox,
+    QCheckBox,
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtGui import (
@@ -42,9 +43,8 @@ from PyQt6.QtGui import (
 from .sdk_integration import ClaudeCodeSDKWrapper, QueryConfig
 from .workers import ClaudeQueryWorker, ClaudeQueryThread
 from .session_manager import SessionManager
-from .models import MessageRole, ConversationSession, Task
+from .models import MessageRole, ConversationSession, Subtask
 from .rules_editor import RulesEditorDialog
-from .task_dialog import TaskCreationDialog
 
 
 class MessageDisplay(QTextEdit):
@@ -229,6 +229,23 @@ class ClaudeCodeMainWindow(QMainWindow):
         tools_group.setLayout(tools_layout)
         info_layout.addWidget(tools_group)
 
+        # TODO list
+        todo_group = QGroupBox("Task Breakdown")
+        todo_layout = QVBoxLayout()
+
+        # Generate subtasks button
+        self.generate_subtasks_button = QPushButton("Generate Subtasks")
+        self.generate_subtasks_button.clicked.connect(self.generate_subtasks)
+        todo_layout.addWidget(self.generate_subtasks_button)
+
+        # TODO list widget
+        self.todo_list = QListWidget()
+        self.todo_list.setMaximumHeight(300)
+        todo_layout.addWidget(self.todo_list)
+
+        todo_group.setLayout(todo_layout)
+        info_layout.addWidget(todo_group)
+
         info_layout.addStretch()
 
         splitter.addWidget(info_widget)
@@ -407,17 +424,6 @@ class ClaudeCodeMainWindow(QMainWindow):
 
         mode_toolbar.addSeparator()
 
-        # Boomerang button
-        self.boomerang_button = QPushButton("🪃 New Task")
-        self.boomerang_button.setToolTip("Create a new task (Ctrl+B)")
-        self.boomerang_button.clicked.connect(self.create_new_task)
-        self.boomerang_button.setStyleSheet(
-            "QPushButton { font-weight: bold; background-color: #4CAF50; color: white; padding: 5px 10px; }"
-        )
-        mode_toolbar.addWidget(self.boomerang_button)
-
-        mode_toolbar.addSeparator()
-
         # Session switcher
         mode_toolbar.addWidget(QLabel(" Session: "))
         self.session_combo = QComboBox()
@@ -528,6 +534,20 @@ class ClaudeCodeMainWindow(QMainWindow):
                 self.session_manager.current_session.add_message(
                     MessageRole.ASSISTANT, text_content
                 )
+
+                # Check if we're generating subtasks
+                if hasattr(self, "generating_subtasks") and self.generating_subtasks:
+                    # Parse subtasks from the response
+                    subtasks = self.parse_subtasks_from_response(text_content)
+                    if subtasks:
+                        # Add subtasks to the session
+                        self.session_manager.current_session.subtasks.extend(subtasks)
+                        # Update the TODO list
+                        self.update_todo_list()
+                        self.status_bar.showMessage(
+                            f"Generated {len(subtasks)} subtasks"
+                        )
+                    self.generating_subtasks = False
 
             # Update tool activity
             for block in message_data["content"]:
@@ -680,6 +700,7 @@ class ClaudeCodeMainWindow(QMainWindow):
         self.session_manager.create_new_session()
         self.message_display.clear()
         self.tools_display.clear()
+        self.todo_list.clear()
         self.update_session_info()
         self.status_bar.showMessage("New session created")
 
@@ -709,6 +730,7 @@ class ClaudeCodeMainWindow(QMainWindow):
 
             self.update_session_info()
             self.update_recent_menu()
+            self.update_todo_list()  # Update TODO list
             self.status_bar.showMessage(f"Loaded session: {session.title}")
 
     def save_session(self):
@@ -946,12 +968,6 @@ class ClaudeCodeMainWindow(QMainWindow):
         next_action.triggered.connect(self.next_mode)
         self.addAction(next_action)
 
-        # Boomerang shortcut (Ctrl+B)
-        boomerang_action = QAction(self)
-        boomerang_action.setShortcut("Ctrl+B")
-        boomerang_action.triggered.connect(self.create_new_task)
-        self.addAction(boomerang_action)
-
     def update_mode_display(self):
         """Update the mode display in the session info."""
         checked_button = self.mode_group.checkedButton()
@@ -973,77 +989,153 @@ class ClaudeCodeMainWindow(QMainWindow):
             else:
                 self.mode_label.setStyleSheet("")
 
-    def create_new_task(self):
-        """Open task creation dialog and create a new task-based session."""
-        dialog = TaskCreationDialog(self)
-        dialog.task_created.connect(self.execute_task)
-
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            # Task will be executed via the signal
-            pass
-
-    def execute_task(self, task: Task):
-        """Execute a task by creating a new session and sending the prompt."""
-        # Save current session if needed
+    def generate_subtasks(self):
+        """Generate subtasks for the current conversation."""
+        # Get the last user message
         if (
-            self.session_manager.current_session
-            and self.session_manager.current_session.messages
+            not self.session_manager.current_session
+            or not self.session_manager.current_session.messages
         ):
-            if self.session_manager.app_settings.auto_save_enabled:
-                self.session_manager.save_session()
+            QMessageBox.information(
+                self, "No Task", "Please enter a task or prompt first."
+            )
+            return
 
-        # Create new session for the task
-        session = self.session_manager.create_new_session(title=task.title)
+        # Find the last user message
+        last_user_message = None
+        for msg in reversed(self.session_manager.current_session.messages):
+            if msg.role == MessageRole.USER:
+                last_user_message = msg.content
+                break
 
-        # Apply task settings to session
-        if task.system_prompt:
-            session.system_prompt = task.system_prompt
-        if task.custom_rules:
-            session.custom_rules = task.custom_rules
+        if not last_user_message:
+            QMessageBox.information(
+                self, "No Task", "No user message found to analyze."
+            )
+            return
 
-        # Clear the display for new session
-        self.message_display.clear()
-        self.tools_display.clear()
-        self.update_session_info()
+        # Create the subtask generation prompt
+        subtask_prompt = f"""Please analyze this task and break it down into subtasks:
 
-        # Set working directory if specified
-        original_cwd = None
-        if task.working_directory:
-            try:
-                original_cwd = Path.cwd()
-                Path(task.working_directory).mkdir(parents=True, exist_ok=True)
-                import os
+Task: {last_user_message}
 
-                os.chdir(task.working_directory)
-            except Exception as e:
-                QMessageBox.warning(
-                    self,
-                    "Working Directory Error",
-                    f"Could not change to directory: {e}",
-                )
+Generate a numbered list of subtasks that would help complete this task. For each subtask:
+- Keep the title concise (under 50 characters)
+- Add a brief description if needed
+- Mark priority as [HIGH], [NORMAL], or [LOW]
 
-        # Set permission mode based on task
-        if task.permission_mode == "bypassPermissions":
-            self.auto_accept_radio.setChecked(True)
-        elif task.permission_mode == "plan":
-            self.plan_mode_radio.setChecked(True)
-        else:
-            self.accept_edits_radio.setChecked(True)
+Format each subtask as:
+1. [PRIORITY] Title - Description (if needed)
 
-        # Execute the task prompt
-        self.input_field.setText(task.prompt)
+Focus on actionable, concrete steps."""
+
+        # Save the subtask prompt
+        self.subtask_generation_prompt = subtask_prompt
+
+        # Send the query with a special marker
+        self.generating_subtasks = True
+        self.input_field.setText(subtask_prompt)
         self.send_query()
 
-        # Restore original working directory if changed
-        if original_cwd:
-            try:
-                import os
+        self.status_bar.showMessage("Generating subtasks...")
 
-                os.chdir(original_cwd)
-            except:
-                pass
+    def parse_subtasks_from_response(self, text: str):
+        """Parse subtasks from Claude's response."""
+        import re
 
-        self.status_bar.showMessage(f"Task '{task.title}' started")
+        subtasks = []
+        # Match numbered items with optional priority and description
+        pattern = r"^\s*\d+\.\s*(?:\[(HIGH|NORMAL|LOW)\])?\s*(.+?)(?:\s*-\s*(.+))?$"
+
+        for line in text.split("\n"):
+            match = re.match(pattern, line, re.IGNORECASE)
+            if match:
+                priority_text = match.group(1) or "NORMAL"
+                title = match.group(2).strip()
+                description = match.group(3).strip() if match.group(3) else ""
+
+                # Map priority
+                priority = 0  # Normal
+                if priority_text.upper() == "HIGH":
+                    priority = 1
+                elif priority_text.upper() == "LOW":
+                    priority = -1
+
+                subtask = Subtask(
+                    title=title[:100],  # Limit title length
+                    description=description,
+                    priority=priority,
+                )
+                subtasks.append(subtask)
+
+        return subtasks
+
+    def update_todo_list(self):
+        """Update the TODO list widget with current subtasks."""
+        self.todo_list.clear()
+
+        if not self.session_manager.current_session:
+            return
+
+        # Sort subtasks by priority and completion status
+        subtasks = sorted(
+            self.session_manager.current_session.subtasks,
+            key=lambda x: (x.is_completed, -x.priority, x.created_at),
+        )
+
+        for subtask in subtasks:
+            # Create a custom widget for each subtask
+            item_widget = QWidget()
+            item_layout = QHBoxLayout()
+            item_layout.setContentsMargins(5, 2, 5, 2)
+
+            # Checkbox
+            checkbox = QCheckBox()
+            checkbox.setChecked(subtask.is_completed)
+            checkbox.toggled.connect(
+                lambda checked, task=subtask: self.toggle_subtask(task, checked)
+            )
+            item_layout.addWidget(checkbox)
+
+            # Title and description
+            text = subtask.title
+            if subtask.description:
+                text += f" - {subtask.description}"
+
+            label = QLabel(text)
+            if subtask.is_completed:
+                label.setStyleSheet(
+                    "QLabel { color: gray; text-decoration: line-through; }"
+                )
+            elif subtask.priority == 1:
+                label.setStyleSheet("QLabel { color: red; font-weight: bold; }")
+            elif subtask.priority == -1:
+                label.setStyleSheet("QLabel { color: gray; }")
+
+            item_layout.addWidget(label)
+            item_layout.addStretch()
+
+            item_widget.setLayout(item_layout)
+
+            # Add to list
+            item = QListWidgetItem()
+            item.setSizeHint(item_widget.sizeHint())
+            self.todo_list.addItem(item)
+            self.todo_list.setItemWidget(item, item_widget)
+
+    def toggle_subtask(self, subtask: Subtask, checked: bool):
+        """Toggle subtask completion status."""
+        from datetime import datetime
+
+        subtask.is_completed = checked
+        subtask.completed_at = datetime.now() if checked else None
+
+        # Save session
+        if self.session_manager.app_settings.auto_save_enabled:
+            self.session_manager.save_session()
+
+        # Update display
+        self.update_todo_list()
 
     def quick_new_session(self):
         """Quickly create a new session without dialog."""
