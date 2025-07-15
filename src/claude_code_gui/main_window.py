@@ -467,6 +467,23 @@ class ClaudeCodeMainWindow(QMainWindow):
 
             # Allow all tools for all modes
             query_config.disallowed_tools = []  # Allow all tools
+            # Explicitly set allowed_tools to ensure Claude has access
+            query_config.allowed_tools = [
+                "Bash",
+                "Edit",
+                "MultiEdit",
+                "NotebookEdit",
+                "WebFetch",
+                "WebSearch",
+                "Write",
+                "Glob",
+                "Grep",
+                "LS",
+                "NotebookRead",
+                "Read",
+                "Task",
+                "TodoWrite",
+            ]
 
             if mode_key == "acceptEdits":
                 query_config.permission_mode = "acceptEdits"
@@ -488,6 +505,12 @@ class ClaudeCodeMainWindow(QMainWindow):
                     query_config.system_prompt += danger_warning
                 else:
                     query_config.system_prompt = danger_warning
+
+        # Debug logging
+        print(f"[DEBUG] Sending query with configuration:")
+        print(f"  - Permission mode: {query_config.permission_mode}")
+        print(f"  - Allowed tools: {query_config.allowed_tools}")
+        print(f"  - Disallowed tools: {query_config.disallowed_tools}")
 
         # Apply custom rules
         if (

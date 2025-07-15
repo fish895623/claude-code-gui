@@ -5,24 +5,28 @@
 ### Accept Edits (Default)
 - Color: Blue
 - Permission: `acceptEdits`
+- Tools: All tools allowed
 - Behavior: Requires user confirmation for all edits
 - Use case: Safe default for general use
 
 ### Auto-Accept
 - Color: Orange
 - Permission: `bypassPermissions`
+- Tools: All tools allowed
 - Behavior: Automatically accepts all edits without confirmation
 - Use case: When user trusts the operations
 
 ### Plan Mode
 - Color: Green
 - Permission: `acceptEdits` + planning prompt
+- Tools: All tools allowed
 - Behavior: Creates and presents a plan before executing
 - Use case: Complex tasks requiring thoughtful approach
 
 ### Dangerous-Skip
 - Color: Red (bold)
-- Permission: `bypassPermissions` + all tools allowed
+- Permission: `bypassPermissions`
+- Tools: All tools allowed
 - Behavior: Bypasses ALL safety checks
 - Use case: Emergency situations only, use with extreme caution
 

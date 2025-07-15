@@ -1,38 +1,51 @@
 # Feature Documentation
 
-## Boomerang Feature (Task Creation)
+## Subtask Generation and TODO Management
 
 ### Overview
-The boomerang feature allows users to quickly create new Claude Code sessions for specific tasks, similar to Roo Code's implementation.
+The subtask generation feature allows Claude to analyze user prompts and break them down into actionable subtasks displayed in a TODO widget.
 
 ### Components
 
-#### Task Creation Dialog
-- **Title**: Descriptive name for the task
-- **Prompt**: Detailed description of what Claude should do
-- **Working Directory**: Optional directory to execute the task in
-- **Permission Mode**: Choose between Accept Edits, Auto-Accept, or Plan mode
-- **System Prompt**: Additional instructions for Claude
-- **Custom Rules**: Task-specific rules
+#### TODO Widget
+- Located in the right panel under "Task Breakdown"
+- Shows generated subtasks with checkboxes
+- Supports marking tasks as complete
+- Color-coded by priority
 
-#### Built-in Templates
-1. **Code Review** - Review code for quality and best practices
-2. **Bug Fix** - Fix specific bugs with reproduction steps
-3. **Feature Implementation** - Implement new features with requirements
-4. **Refactoring** - Improve code structure and readability
-5. **Documentation** - Create or update documentation
-6. **Test Creation** - Write comprehensive tests
+#### Generate Subtasks Button
+- Analyzes the last user prompt
+- Sends it to Claude for task breakdown
+- Parses the response into structured subtasks
+- Updates the TODO list automatically
+
+### Subtask Format
+Claude generates subtasks in this format:
+```
+1. [HIGH] Task title - Optional description
+2. [NORMAL] Another task
+3. [LOW] Low priority task - With details
+```
+
+### Priority Levels
+- **HIGH**: Red text, bold
+- **NORMAL**: Default black text
+- **LOW**: Gray text
+
+### Features
+- Subtasks persist with sessions
+- Check/uncheck to mark complete
+- Completed tasks show strikethrough
+- Auto-save when toggling completion
+- Sorted by: completion status, priority, creation time
 
 ### Usage
-1. Click the 🪃 button or press Ctrl+B
-2. Fill in task details or select a template
-3. Click OK to create a new session and execute the task
+1. Enter a task or prompt in the main input
+2. Click "Generate Subtasks" button
+3. Claude analyzes and creates subtask breakdown
+4. Check off subtasks as you complete them
 
 ### Session Management
 - **Session Switcher**: Dropdown in toolbar shows current and recent sessions
 - **Quick New Session**: ➕ button creates a new blank session
-- **Auto-save**: Current session is saved before switching
-
-### Keyboard Shortcuts
-- `Ctrl+B` - Open task creation dialog
-- `Ctrl+Shift+N` - Quick new session (future enhancement)
+- Subtasks are saved with each session
