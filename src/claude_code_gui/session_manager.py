@@ -82,6 +82,8 @@ class SessionManager(QObject):
         if self.app_settings.default_system_prompt:
             session.system_prompt = self.app_settings.default_system_prompt
         session.tools_enabled = self.app_settings.default_tools.copy()
+        if self.app_settings.default_rules:
+            session.custom_rules = self.app_settings.default_rules
 
         self.current_session = session
         return session

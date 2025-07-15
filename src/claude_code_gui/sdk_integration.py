@@ -20,6 +20,8 @@ from claude_code_sdk import (
 )
 from typing import Literal
 
+from .rules_parser import RulesParser
+
 PermissionMode = Literal["default", "acceptEdits", "bypassPermissions"]
 
 
@@ -34,6 +36,7 @@ class QueryConfig:
     permission_mode: Optional[PermissionMode] = None
     cwd: Optional[Path] = None
     model: Optional[str] = None
+    custom_rules_xml: Optional[str] = None  # XML rules to apply
 
 
 class ClaudeCodeSDKWrapper:
@@ -49,8 +52,25 @@ class ClaudeCodeSDKWrapper:
         """Send a query to Claude Code and yield messages."""
         config = config_override or self.config
 
+        # Build system prompt with rules if provided
+        system_prompt_parts = []
+
+        if config.system_prompt:
+            system_prompt_parts.append(config.system_prompt)
+
+        if config.custom_rules_xml:
+            rules, error = RulesParser.parse_xml(config.custom_rules_xml)
+            if not error and rules:
+                rules_prompt = RulesParser.rules_to_prompt(rules)
+                if rules_prompt:
+                    system_prompt_parts.append(rules_prompt)
+
+        combined_system_prompt = (
+            "\n\n".join(system_prompt_parts) if system_prompt_parts else None
+        )
+
         options = ClaudeCodeOptions(
-            system_prompt=config.system_prompt,
+            system_prompt=combined_system_prompt,
             max_turns=config.max_turns,
             allowed_tools=config.allowed_tools,
             disallowed_tools=config.disallowed_tools,

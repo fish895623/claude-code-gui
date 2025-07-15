@@ -65,6 +65,7 @@ class ConversationSession:
     sdk_session_id: Optional[str] = (
         None  # Claude SDK session ID for resuming conversations
     )
+    custom_rules: Optional[str] = None  # XML rules for this session
 
     # Usage statistics
     total_tokens: int = 0
@@ -90,6 +91,7 @@ class ConversationSession:
             "system_prompt": self.system_prompt,
             "tools_enabled": self.tools_enabled,
             "sdk_session_id": self.sdk_session_id,
+            "custom_rules": self.custom_rules,
             "total_tokens": self.total_tokens,
             "total_cost": self.total_cost,
         }
@@ -107,6 +109,7 @@ class ConversationSession:
             system_prompt=data.get("system_prompt"),
             tools_enabled=data.get("tools_enabled", []),
             sdk_session_id=data.get("sdk_session_id"),
+            custom_rules=data.get("custom_rules"),
             total_tokens=data.get("total_tokens", 0),
             total_cost=data.get("total_cost", 0.0),
         )
@@ -138,6 +141,7 @@ class ApplicationSettings:
     default_model: Optional[str] = None
     default_system_prompt: Optional[str] = None
     default_tools: List[str] = field(default_factory=list)
+    default_rules: Optional[str] = None  # Default XML rules for new sessions
 
     # History settings
     history_retention_days: int = 30
@@ -161,6 +165,7 @@ class ApplicationSettings:
             "default_model": self.default_model,
             "default_system_prompt": self.default_system_prompt,
             "default_tools": self.default_tools,
+            "default_rules": self.default_rules,
             "history_retention_days": self.history_retention_days,
             "export_formats": self.export_formats,
         }
@@ -185,6 +190,7 @@ class ApplicationSettings:
         settings.default_model = data.get("default_model")
         settings.default_system_prompt = data.get("default_system_prompt")
         settings.default_tools = data.get("default_tools", [])
+        settings.default_rules = data.get("default_rules")
         settings.history_retention_days = data.get("history_retention_days", 30)
         settings.export_formats = data.get(
             "export_formats", ["json", "markdown", "html"]

@@ -39,6 +39,7 @@ from .sdk_integration import ClaudeCodeSDKWrapper, QueryConfig
 from .workers import ClaudeQueryWorker, ClaudeQueryThread
 from .session_manager import SessionManager
 from .models import MessageRole, ConversationSession
+from .rules_editor import RulesEditorDialog
 
 
 class MessageDisplay(QTextEdit):
@@ -192,9 +193,11 @@ class ClaudeCodeMainWindow(QMainWindow):
         self.session_label = QLabel("No active session")
         self.cost_label = QLabel("Cost: $0.00")
         self.turns_label = QLabel("Turns: 0")
+        self.rules_label = QLabel("Rules: None")
         session_layout.addWidget(self.session_label)
         session_layout.addWidget(self.cost_label)
         session_layout.addWidget(self.turns_label)
+        session_layout.addWidget(self.rules_label)
         session_group.setLayout(session_layout)
         info_layout.addWidget(session_group)
 
@@ -299,6 +302,14 @@ class ClaudeCodeMainWindow(QMainWindow):
         delete_action.triggered.connect(self.delete_session)
         session_menu.addAction(delete_action)
 
+        session_menu.addSeparator()
+
+        # Edit Rules
+        edit_rules_action = QAction("Edit Rules...", self)
+        edit_rules_action.setShortcut("Ctrl+R")
+        edit_rules_action.triggered.connect(self.edit_rules)
+        session_menu.addAction(edit_rules_action)
+
     def send_query(self):
         """Send a query to Claude Code."""
         prompt = self.input_field.text().strip()
@@ -318,9 +329,19 @@ class ClaudeCodeMainWindow(QMainWindow):
         if self.session_manager.current_session:
             self.session_manager.current_session.add_message(MessageRole.USER, prompt)
 
+        # Create query config with current session rules
+        query_config = None
+        if (
+            self.session_manager.current_session
+            and self.session_manager.current_session.custom_rules
+        ):
+            query_config = QueryConfig(
+                custom_rules_xml=self.session_manager.current_session.custom_rules
+            )
+
         # Create worker and thread
         worker = ClaudeQueryWorker(self.sdk_wrapper)
-        self.current_thread = ClaudeQueryThread(worker, prompt)
+        self.current_thread = ClaudeQueryThread(worker, prompt, query_config)
 
         # Connect signals
         worker.message_received.connect(self.handle_message)
@@ -655,10 +676,51 @@ class ClaudeCodeMainWindow(QMainWindow):
             self.session_label.setText(f"Session: {session.title}")
             self.cost_label.setText(f"Cost: ${session.total_cost:.4f}")
             self.turns_label.setText(f"Messages: {len(session.messages)}")
+
+            # Update rules indicator
+            if session.custom_rules:
+                self.rules_label.setText("Rules: Active")
+                self.rules_label.setStyleSheet("QLabel { color: green; }")
+            else:
+                self.rules_label.setText("Rules: None")
+                self.rules_label.setStyleSheet("")
         else:
             self.session_label.setText("No active session")
             self.cost_label.setText("Cost: $0.00")
             self.turns_label.setText("Messages: 0")
+            self.rules_label.setText("Rules: None")
+            self.rules_label.setStyleSheet("")
+
+    def edit_rules(self):
+        """Edit custom rules for the current session."""
+        if not self.session_manager.current_session:
+            QMessageBox.information(
+                self, "No Session", "Please create or load a session first."
+            )
+            return
+
+        # Get current rules or use default
+        current_rules = self.session_manager.current_session.custom_rules
+        if not current_rules and self.session_manager.app_settings.default_rules:
+            current_rules = self.session_manager.app_settings.default_rules
+
+        # Show rules editor
+        dialog = RulesEditorDialog(current_rules, self)
+        dialog.rules_saved.connect(self.on_rules_saved)
+
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            # Rules are saved via the signal
+            pass
+
+    def on_rules_saved(self, xml_content: str):
+        """Handle rules saved from the editor."""
+        if self.session_manager.current_session:
+            self.session_manager.current_session.custom_rules = xml_content
+            # Auto-save if enabled
+            if self.session_manager.app_settings.auto_save_enabled:
+                self.session_manager.save_session()
+            self.update_session_info()
+            self.status_bar.showMessage("Rules updated")
 
 
 class SessionSelectionDialog(QDialog):
