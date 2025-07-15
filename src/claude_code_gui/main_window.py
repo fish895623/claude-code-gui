@@ -134,8 +134,8 @@ class ClaudeCodeMainWindow(QMainWindow):
         self.init_menu_bar()
         self.restore_window_state()
 
-        # Start with a new session
-        self.session_manager.create_new_session()
+        # Load the most recent session or create a new one
+        self.load_or_create_session()
 
     def init_ui(self):
         """Initialize the user interface."""
@@ -373,6 +373,13 @@ class ClaudeCodeMainWindow(QMainWindow):
         elif msg_type == "result":
             # Update session info
             self.session_label.setText(f"Session: {message_data['session_id'][:8]}...")
+
+            # Save SDK session ID for resuming
+            if self.session_manager.current_session:
+                self.session_manager.current_session.sdk_session_id = message_data[
+                    "session_id"
+                ]
+
             if message_data.get("total_cost_usd"):
                 self.cost_label.setText(f"Cost: ${message_data['total_cost_usd']:.4f}")
                 # Update session cost
@@ -460,6 +467,21 @@ class ClaudeCodeMainWindow(QMainWindow):
             )
         if settings.window_state:
             self.restoreState(settings.window_state)
+
+    def load_or_create_session(self):
+        """Load the most recent session or create a new one."""
+        # Check if we should restore the last session
+        if self.session_manager.app_settings.restore_last_session:
+            recent_sessions = self.session_manager.get_recent_sessions()
+            if recent_sessions:
+                # Load the most recent session
+                most_recent = recent_sessions[0]
+                self.load_session(most_recent.id)
+                return
+
+        # Otherwise, create a new session
+        self.session_manager.create_new_session()
+        self.update_session_info()
 
     def new_session(self):
         """Create a new session."""

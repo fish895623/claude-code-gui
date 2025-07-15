@@ -270,7 +270,8 @@ class SessionManager(QObject):
 
             elif format == "html":
                 with open(output_path, "w", encoding="utf-8") as f:
-                    f.write(f"""<!DOCTYPE html>
+                    f.write(
+                        f"""<!DOCTYPE html>
 <html>
 <head>
     <title>{session.title}</title>
@@ -287,19 +288,24 @@ class SessionManager(QObject):
     <p>Created: {session.created_at.strftime("%Y-%m-%d %H:%M:%S")}</p>
     <p>Updated: {session.updated_at.strftime("%Y-%m-%d %H:%M:%S")}</p>
     <hr>
-""")
+"""
+                    )
 
                     for msg in session.messages:
                         css_class = msg.role.value
-                        f.write(f"""    <div class="message {css_class}">
+                        f.write(
+                            f"""    <div class="message {css_class}">
         <strong>{msg.role.value.title()}</strong>
         <p>{msg.content.replace(chr(10), "<br>")}</p>
         <span class="timestamp">{msg.timestamp.strftime("%H:%M:%S")}</span>
     </div>
-""")
+"""
+                        )
 
-                    f.write("""</body>
-</html>""")
+                    f.write(
+                        """</body>
+</html>"""
+                    )
 
             else:
                 return False
@@ -337,4 +343,3 @@ class SessionManager(QObject):
     def set_current_session(self, session: ConversationSession):
         """Set the current active session."""
         self.current_session = session
-

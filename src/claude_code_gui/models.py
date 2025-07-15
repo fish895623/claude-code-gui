@@ -62,6 +62,9 @@ class ConversationSession:
     model: Optional[str] = None
     system_prompt: Optional[str] = None
     tools_enabled: List[str] = field(default_factory=list)
+    sdk_session_id: Optional[str] = (
+        None  # Claude SDK session ID for resuming conversations
+    )
 
     # Usage statistics
     total_tokens: int = 0
@@ -86,6 +89,7 @@ class ConversationSession:
             "model": self.model,
             "system_prompt": self.system_prompt,
             "tools_enabled": self.tools_enabled,
+            "sdk_session_id": self.sdk_session_id,
             "total_tokens": self.total_tokens,
             "total_cost": self.total_cost,
         }
@@ -102,6 +106,7 @@ class ConversationSession:
             model=data.get("model"),
             system_prompt=data.get("system_prompt"),
             tools_enabled=data.get("tools_enabled", []),
+            sdk_session_id=data.get("sdk_session_id"),
             total_tokens=data.get("total_tokens", 0),
             total_cost=data.get("total_cost", 0.0),
         )
@@ -127,6 +132,7 @@ class ApplicationSettings:
     auto_save_interval: int = 300  # seconds
     max_recent_sessions: int = 10
     session_storage_path: str = ""
+    restore_last_session: bool = True  # Whether to restore the last session on startup
 
     # Default query settings
     default_model: Optional[str] = None
@@ -151,6 +157,7 @@ class ApplicationSettings:
             "auto_save_interval": self.auto_save_interval,
             "max_recent_sessions": self.max_recent_sessions,
             "session_storage_path": self.session_storage_path,
+            "restore_last_session": self.restore_last_session,
             "default_model": self.default_model,
             "default_system_prompt": self.default_system_prompt,
             "default_tools": self.default_tools,
@@ -174,6 +181,7 @@ class ApplicationSettings:
         settings.auto_save_interval = data.get("auto_save_interval", 300)
         settings.max_recent_sessions = data.get("max_recent_sessions", 10)
         settings.session_storage_path = data.get("session_storage_path", "")
+        settings.restore_last_session = data.get("restore_last_session", True)
         settings.default_model = data.get("default_model")
         settings.default_system_prompt = data.get("default_system_prompt")
         settings.default_tools = data.get("default_tools", [])
@@ -234,4 +242,3 @@ class SessionMetadata:
             total_tokens=session.total_tokens,
             total_cost=session.total_cost,
         )
-
