@@ -52,6 +52,9 @@ class MessageDisplay(QTextEdit):
         super().__init__()
         self.setReadOnly(True)
         self.setFont(QFont("Consolas", 10))
+        # Hide scrollbars
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
     def append_user_message(self, content: str):
         """Append a user message with formatting."""
@@ -213,6 +216,13 @@ class ClaudeCodeMainWindow(QMainWindow):
         self.tools_display = QTextEdit()
         self.tools_display.setReadOnly(True)
         self.tools_display.setMaximumHeight(200)
+        # Hide scrollbars
+        self.tools_display.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self.tools_display.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
         tools_layout.addWidget(self.tools_display)
         tools_group.setLayout(tools_layout)
         info_layout.addWidget(tools_group)
@@ -319,11 +329,13 @@ class ClaudeCodeMainWindow(QMainWindow):
     def init_mode_toolbar(self):
         """Initialize the mode toolbar."""
         mode_toolbar = self.addToolBar("Mode")
-        
+        if not mode_toolbar:
+            return
+
         # Mode radio buttons
         self.mode_group = QButtonGroup()
         self.modes = []
-        
+
         # Accept Edits mode (default)
         self.accept_edits_radio = QRadioButton("Accept Edits")
         self.accept_edits_radio.setToolTip("Requires confirmation for edits")
@@ -331,7 +343,7 @@ class ClaudeCodeMainWindow(QMainWindow):
         self.mode_group.addButton(self.accept_edits_radio, 0)
         self.modes.append(("acceptEdits", self.accept_edits_radio))
         mode_toolbar.addWidget(self.accept_edits_radio)
-        
+
         # Auto-Accept mode
         self.auto_accept_radio = QRadioButton("Auto-Accept")
         self.auto_accept_radio.setToolTip("Automatically accepts edits")
@@ -339,7 +351,7 @@ class ClaudeCodeMainWindow(QMainWindow):
         self.mode_group.addButton(self.auto_accept_radio, 1)
         self.modes.append(("bypassPermissions", self.auto_accept_radio))
         mode_toolbar.addWidget(self.auto_accept_radio)
-        
+
         # Plan mode
         self.plan_mode_radio = QRadioButton("Plan")
         self.plan_mode_radio.setToolTip("Plans before executing")
@@ -347,31 +359,33 @@ class ClaudeCodeMainWindow(QMainWindow):
         self.mode_group.addButton(self.plan_mode_radio, 2)
         self.modes.append(("plan", self.plan_mode_radio))
         mode_toolbar.addWidget(self.plan_mode_radio)
-        
+
         # Dangerous-Skip mode
         self.dangerous_skip_radio = QRadioButton("Dangerous-Skip")
         self.dangerous_skip_radio.setToolTip("DANGER: Bypasses all safety checks")
-        self.dangerous_skip_radio.setStyleSheet("QRadioButton { color: red; font-weight: bold; }")
+        self.dangerous_skip_radio.setStyleSheet(
+            "QRadioButton { color: red; font-weight: bold; }"
+        )
         self.mode_group.addButton(self.dangerous_skip_radio, 3)
         self.modes.append(("dangerous", self.dangerous_skip_radio))
         mode_toolbar.addWidget(self.dangerous_skip_radio)
-        
+
         # Connect mode change signal
         self.mode_group.buttonClicked.connect(self.on_mode_changed)
-        
+
         mode_toolbar.addSeparator()
-        
+
         # Previous/Next buttons
         self.prev_button = QPushButton("◀ Previous")
         self.prev_button.setToolTip("Previous mode (Ctrl+;)")
         self.prev_button.clicked.connect(self.prev_mode)
         mode_toolbar.addWidget(self.prev_button)
-        
+
         self.next_button = QPushButton("Next ▶")
         self.next_button.setToolTip("Next mode (Ctrl+')")
         self.next_button.clicked.connect(self.next_mode)
         mode_toolbar.addWidget(self.next_button)
-        
+
         # Load saved settings and set default
         saved_mode = self.session_manager.app_settings.default_permission_mode
         if saved_mode == "bypassPermissions":
@@ -382,10 +396,10 @@ class ClaudeCodeMainWindow(QMainWindow):
             self.dangerous_skip_radio.setChecked(True)
         else:
             self.accept_edits_radio.setChecked(True)  # Default
-        
+
         # Add keyboard shortcuts
         self.add_mode_shortcuts()
-        
+
         # Update mode display
         self.update_mode_display()
 
@@ -410,22 +424,24 @@ class ClaudeCodeMainWindow(QMainWindow):
 
         # Create query config with current session rules and modes
         query_config = QueryConfig()
-        
+
         # Set permission mode based on selected radio button
         checked_id = self.mode_group.checkedId()
         if checked_id >= 0 and checked_id < len(self.modes):
             mode_key = self.modes[checked_id][0]
-            
+
             if mode_key == "acceptEdits":
                 query_config.permission_mode = "acceptEdits"
             elif mode_key == "bypassPermissions" or mode_key == "dangerous":
                 query_config.permission_mode = "bypassPermissions"
             elif mode_key == "plan":
-                query_config.permission_mode = "acceptEdits"  # Plan mode still uses acceptEdits
+                query_config.permission_mode = (
+                    "acceptEdits"  # Plan mode still uses acceptEdits
+                )
                 # Add plan instruction
                 plan_instruction = "\n\nIMPORTANT: Before executing any tasks, first create and present a detailed plan of what you will do. Only proceed with implementation after the user approves the plan."
                 query_config.system_prompt = plan_instruction
-            
+
             # For dangerous mode, disable all safety tools
             if mode_key == "dangerous":
                 query_config.disallowed_tools = []  # Allow all tools
@@ -435,13 +451,15 @@ class ClaudeCodeMainWindow(QMainWindow):
                     query_config.system_prompt += danger_warning
                 else:
                     query_config.system_prompt = danger_warning
-        
+
         # Apply custom rules
         if (
             self.session_manager.current_session
             and self.session_manager.current_session.custom_rules
         ):
-            query_config.custom_rules_xml = self.session_manager.current_session.custom_rules
+            query_config.custom_rules_xml = (
+                self.session_manager.current_session.custom_rules
+            )
 
         # Create worker and thread
         worker = ClaudeQueryWorker(self.sdk_wrapper)
@@ -825,37 +843,45 @@ class ClaudeCodeMainWindow(QMainWindow):
                 self.session_manager.save_session()
             self.update_session_info()
             self.status_bar.showMessage("Rules updated")
-    
+
     def on_mode_changed(self, button: QRadioButton):
         """Handle mode change."""
         checked_id = self.mode_group.checkedId()
         if checked_id >= 0 and checked_id < len(self.modes):
             mode_key = self.modes[checked_id][0]
-            
+
             # Save to settings
             if mode_key == "acceptEdits":
-                self.session_manager.app_settings.default_permission_mode = "acceptEdits"
+                self.session_manager.app_settings.default_permission_mode = (
+                    "acceptEdits"
+                )
                 self.session_manager.app_settings.enable_plan_mode = False
                 self.session_manager.app_settings.enable_dangerous_skip = False
             elif mode_key == "bypassPermissions":
-                self.session_manager.app_settings.default_permission_mode = "bypassPermissions"
+                self.session_manager.app_settings.default_permission_mode = (
+                    "bypassPermissions"
+                )
                 self.session_manager.app_settings.enable_plan_mode = False
                 self.session_manager.app_settings.enable_dangerous_skip = False
             elif mode_key == "plan":
-                self.session_manager.app_settings.default_permission_mode = "acceptEdits"
+                self.session_manager.app_settings.default_permission_mode = (
+                    "acceptEdits"
+                )
                 self.session_manager.app_settings.enable_plan_mode = True
                 self.session_manager.app_settings.enable_dangerous_skip = False
             elif mode_key == "dangerous":
-                self.session_manager.app_settings.default_permission_mode = "bypassPermissions"
+                self.session_manager.app_settings.default_permission_mode = (
+                    "bypassPermissions"
+                )
                 self.session_manager.app_settings.enable_plan_mode = False
                 self.session_manager.app_settings.enable_dangerous_skip = True
-            
+
             self.session_manager.save_app_settings()
-            
+
             # Update display
             self.update_mode_display()
             self.status_bar.showMessage(f"Mode changed to: {button.text()}")
-    
+
     def prev_mode(self):
         """Switch to previous mode."""
         current_id = self.mode_group.checkedId()
@@ -864,7 +890,7 @@ class ClaudeCodeMainWindow(QMainWindow):
         else:
             # Wrap around to last mode
             self.modes[-1][1].setChecked(True)
-    
+
     def next_mode(self):
         """Switch to next mode."""
         current_id = self.mode_group.checkedId()
@@ -873,7 +899,7 @@ class ClaudeCodeMainWindow(QMainWindow):
         else:
             # Wrap around to first mode
             self.modes[0][1].setChecked(True)
-    
+
     def add_mode_shortcuts(self):
         """Add keyboard shortcuts for mode switching."""
         # Previous mode shortcut (Ctrl+;)
@@ -881,23 +907,25 @@ class ClaudeCodeMainWindow(QMainWindow):
         prev_action.setShortcut("Ctrl+;")
         prev_action.triggered.connect(self.prev_mode)
         self.addAction(prev_action)
-        
+
         # Next mode shortcut (Ctrl+')
         next_action = QAction(self)
         next_action.setShortcut("Ctrl+'")
         next_action.triggered.connect(self.next_mode)
         self.addAction(next_action)
-    
+
     def update_mode_display(self):
         """Update the mode display in the session info."""
         checked_button = self.mode_group.checkedButton()
         if checked_button:
             mode_text = checked_button.text()
             self.mode_label.setText(f"Mode: {mode_text}")
-            
+
             # Update label color based on mode
             if mode_text == "Dangerous-Skip":
-                self.mode_label.setStyleSheet("QLabel { color: red; font-weight: bold; }")
+                self.mode_label.setStyleSheet(
+                    "QLabel { color: red; font-weight: bold; }"
+                )
             elif mode_text == "Auto-Accept":
                 self.mode_label.setStyleSheet("QLabel { color: orange; }")
             elif mode_text == "Accept Edits":

@@ -197,7 +197,9 @@ class ApplicationSettings:
         settings.default_system_prompt = data.get("default_system_prompt")
         settings.default_tools = data.get("default_tools", [])
         settings.default_rules = data.get("default_rules")
-        settings.default_permission_mode = data.get("default_permission_mode", "acceptEdits")
+        settings.default_permission_mode = data.get(
+            "default_permission_mode", "acceptEdits"
+        )
         settings.enable_plan_mode = data.get("enable_plan_mode", False)
         settings.enable_dangerous_skip = data.get("enable_dangerous_skip", False)
         settings.history_retention_days = data.get("history_retention_days", 30)
